@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2b1d16">
+<title>Restless Receiving</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+  :root{
+    --espresso:#2b1d16; --paper:#faf6ef; --card:#ffffff; --ink:#241a14;
+    --muted:#8a7a6d; --line:#e8dfd3; --amber:#c47f17; --ok:#2e7d4f;
+    --warn:#c0392b; --info:#8a5a2b;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  body{margin:0; font-family:-apple-system,'Segoe UI',Roboto,sans-serif; background:var(--paper); color:var(--ink); padding-bottom:40px}
+  header{background:var(--espresso); color:#f5ead9; padding:14px 16px; position:sticky; top:0; z-index:20; display:flex; justify-content:space-between; align-items:center}
+  header h1{font-size:17px; margin:0; letter-spacing:.5px}
+  header .sub{font-size:11px; color:#c9b8a4}
+  #banner-offline{display:none; background:var(--warn); color:#fff; padding:9px 14px; font-size:13px; font-weight:600; text-align:center}
+  #banner-pending{display:none; background:var(--amber); color:#fff; padding:8px 14px; font-size:13px; text-align:center}
+  .wrap{max-width:560px; margin:0 auto; padding:16px}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:14px}
+  .card h2{font-size:15px; margin:0 0 10px}
+  label{display:block; font-size:12px; color:var(--muted); margin:10px 0 4px; font-weight:600; text-transform:uppercase; letter-spacing:.4px}
+  input,select,textarea{width:100%; padding:12px; font-size:16px; border:1px solid var(--line); border-radius:10px; background:#fff; color:var(--ink)}
+  textarea{min-height:70px; resize:vertical}
+  .btn{display:block; width:100%; padding:15px; font-size:16px; font-weight:700; border:none; border-radius:12px; cursor:pointer; margin-top:12px; background:var(--espresso); color:#f5ead9}
+  .btn.secondary{background:#efe7db; color:var(--ink)}
+  .btn.small{padding:9px; font-size:13px; margin-top:8px; width:auto; display:inline-block}
+  .btn:disabled{opacity:.5}
+  .item-row{border:1px solid var(--line); border-radius:12px; padding:12px; margin-bottom:10px; background:#fffdf9}
+  .item-row .nama{font-weight:700; font-size:15px}
+  .item-row .detail{font-size:12px; color:var(--muted); margin:2px 0 8px}
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:8px}
+  .grid3{display:grid; grid-template-columns:2fr 1fr 1fr; gap:6px}
+  .tag{display:inline-block; padding:3px 9px; border-radius:99px; font-size:11px; font-weight:700}
+  .tag.ok{background:#e3f2e8; color:var(--ok)} .tag.warn{background:#fbe4e0; color:var(--warn)} .tag.info{background:#f5ead9; color:var(--info)}
+  .order-pick{border:1px solid var(--line); border-radius:12px; padding:13px; margin-bottom:10px; background:#fff; cursor:pointer}
+  .order-pick:active{background:#f5ead9}
+  .foto-box{border:2px dashed var(--line); border-radius:12px; padding:14px; text-align:center; margin-top:6px; cursor:pointer; font-size:14px; color:var(--muted)}
+  .foto-box.done{border-color:var(--ok); color:var(--ok); font-weight:700; background:#f2faf5}
+  .hidden{display:none}
+  .status-line{font-size:13px; margin-top:10px; color:var(--muted); text-align:center; min-height:18px}
+  .del-x{background:none; border:none; color:var(--warn); font-size:14px; padding:4px 8px; cursor:pointer; font-weight:700}
+  .topnav{display:flex; gap:8px; margin-bottom:14px}
+  .topnav button{flex:1; padding:10px; font-size:13px; font-weight:700; border:1px solid var(--line); background:#fff; border-radius:10px; color:var(--muted); cursor:pointer}
+  .topnav button.aktif{background:var(--espresso); color:#f5ead9; border-color:var(--espresso)}
+  .success-big{text-align:center; padding:30px 10px}
+  .success-big .icon{font-size:52px}
+  .success-big p{color:var(--muted); font-size:14px}
+  .pov-vendor{border:1px solid var(--amber); background:#fffdf7}
+  .pov-head{display:flex; justify-content:space-between; align-items:center}
+  .pov-head label{margin:0}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Restless Receiving</h1>
+    <div class="sub">Laporan penerimaan barang</div>
+  </div>
+  <button id="btn-logout" class="btn small secondary hidden" onclick="logout()">Keluar</button>
+</header>
+
+<div id="banner-offline">⚠️ Offline — laporan disimpan di HP ini dan terkirim otomatis saat sinyal kembali</div>
+<div id="banner-pending"></div>
+
+<div class="wrap">
+
+  <!-- LOGIN -->
+  <div id="scr-login" class="card">
+    <h2>Masuk</h2>
+    <label>Kode akses</label>
+    <input id="inp-kode" type="password" inputmode="text" autocomplete="off" placeholder="Kode dari owner">
+    <button class="btn" onclick="login()">Masuk</button>
+    <div class="status-line" id="login-status"></div>
+  </div>
+
+  <!-- HOME -->
+  <div id="scr-home" class="hidden">
+    <div class="card">
+      <label>Nama pelapor</label>
+      <select id="sel-pelapor"></select>
+    </div>
+    <button class="btn" onclick="bukaModeOrder()">📋 Report dari Order</button>
+    <button class="btn secondary" onclick="bukaModeLangsung()">📦 Report Langsung (tanpa order)</button>
+    <button class="btn secondary hidden" id="btn-upload-po" onclick="bukaUploadPO()">🧾 Upload PO (admin)</button>
+  </div>
+
+  <!-- PILIH ORDER -->
+  <div id="scr-pilih-order" class="hidden">
+    <div class="topnav">
+      <button class="aktif" onclick="void(0)">Order aktif</button>
+      <button onclick="kembaliHome()">← Kembali</button>
+    </div>
+    <div id="list-order"></div>
+    <div class="status-line" id="order-status"></div>
+  </div>
+
+  <!-- FORM REPORT (dipakai mode order & langsung) -->
+  <div id="scr-report" class="hidden">
+    <div class="topnav">
+      <button class="aktif" id="report-judul" onclick="void(0)">Report</button>
+      <button onclick="kembaliHome()">← Batal</button>
+    </div>
+    <div class="card">
+      <div id="report-info" style="font-size:13px;color:var(--muted);margin-bottom:6px"></div>
+      <div id="lang-supplier-wrap" class="hidden">
+        <label>Supplier</label>
+        <input id="inp-supplier" placeholder="Nama supplier / toko">
+      </div>
+      <div id="report-items"></div>
+      <button class="btn small secondary hidden" id="btn-tambah-item" onclick="tambahBarisLangsung()">+ Tambah item</button>
+
+      <label>Foto nota (wajib)</label>
+      <div class="foto-box" id="box-nota" onclick="document.getElementById('file-nota').click()">📷 Ambil foto nota</div>
+      <input type="file" id="file-nota" accept="image/*" capture="environment" class="hidden" onchange="pilihFoto('nota')">
+
+      <label>Foto barang (opsional)</label>
+      <div class="foto-box" id="box-barang" onclick="document.getElementById('file-barang').click()">📷 Ambil foto barang</div>
+      <input type="file" id="file-barang" accept="image/*" capture="environment" class="hidden" onchange="pilihFoto('barang')">
+
+      <label>Catatan</label>
+      <textarea id="inp-catatan" placeholder="Contoh: kardus penyok, retur 2 pcs"></textarea>
+
+      <button class="btn" id="btn-kirim" onclick="kirimReport()">Kirim laporan</button>
+      <div class="status-line" id="report-status"></div>
+    </div>
+  </div>
+
+  <!-- UPLOAD PO (ADMIN) — mendukung foto, PDF, dan XLSX multi-vendor -->
+  <div id="scr-po" class="hidden">
+    <div class="topnav">
+      <button class="aktif" onclick="void(0)">Upload PO</button>
+      <button onclick="kembaliHome()">← Batal</button>
+    </div>
+    <div class="card" id="po-step1">
+      <h2>1. Pilih file PO</h2>
+      <p style="font-size:13px;color:var(--muted)">Foto, scan, PDF, atau Excel (.xlsx). Satu file boleh berisi banyak vendor. Butuh koneksi internet.</p>
+      <div class="foto-box" id="box-po" onclick="document.getElementById('file-po').click()">🧾 Pilih file purchasing order</div>
+      <input type="file" id="file-po" accept="image/*,application/pdf,.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" class="hidden" onchange="prosesPO()">
+      <div class="status-line" id="po-status"></div>
+    </div>
+    <div class="card hidden" id="po-step2">
+      <h2>2. Periksa hasil baca — WAJIB dicek sebelum simpan</h2>
+      <div id="po-sumber" style="font-size:12px;color:var(--muted);margin-bottom:4px"></div>
+      <label>Tanggal order</label>
+      <input id="po-tanggal" placeholder="DD/MM/YYYY">
+      <div id="po-vendors" style="margin-top:10px"></div>
+      <button class="btn small secondary" onclick="tambahVendorPO('',[])">+ Tambah vendor</button>
+      <button class="btn" onclick="simpanSemuaOrder()">Simpan semua → jadi checklist tim</button>
+      <div class="status-line" id="po-save-status"></div>
+    </div>
+  </div>
+
+  <!-- SUKSES -->
+  <div id="scr-sukses" class="hidden">
+    <div class="card success-big">
+      <div class="icon">✅</div>
+      <h2 id="sukses-judul">Laporan terkirim</h2>
+      <p id="sukses-detail"></p>
+      <button class="btn" onclick="kembaliHome()">Selesai</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ================================================================
+// KONFIG
+// ================================================================
+var GAS_URL = 'PASTE_URL_WEB_APP_DISINI'; // WAJIB DIUBAH — URL /exec dari deployment GAS
+
+var CHUNK_SIZE = 50000; // ~50KB base64 per chunk
+var state = { kode:'', role:'', pelapor:[], mode:'', orderAktif:null };
+var foto = { nota:null, barang:null }; // {base64, mime, name}
+var db = null;
+
+// ================================================================
+// UTIL DASAR
+// ================================================================
+function $(id){ return document.getElementById(id); }
+function show(id){ $(id).classList.remove('hidden'); }
+function hide(id){ $(id).classList.add('hidden'); }
+function layar(id){
+  ['scr-login','scr-home','scr-pilih-order','scr-report','scr-po','scr-sukses'].forEach(hide);
+  show(id);
+}
+function esc(s){ var d=document.createElement('div'); d.textContent=String(s==null?'':s); return d.innerHTML.replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+// Angka Indonesia-aware: "0,5" dan "0.5" sama-sama valid
+function num(v){ var n=Number(String(v==null?'':v).trim().replace(',','.')); return isNaN(n)?0:n; }
+
+async function api(action, data){
+  var body = JSON.stringify(Object.assign({ action:action, key:state.kode }, data||{}));
+  var res = await fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:body });
+  return res.json();
+}
+
+// ================================================================
+// LOGIN / SESI
+// ================================================================
+async function login(){
+  var kode = $('inp-kode').value.trim();
+  if(!kode){ $('login-status').textContent='Isi kode akses dulu'; return; }
+  $('login-status').textContent='Memeriksa…';
+  state.kode = kode;
+  try{
+    var r = await api('login');
+    if(!r.ok){ $('login-status').textContent = r.error; state.kode=''; return; }
+    state.role = r.role; state.pelapor = r.pelapor || [];
+    localStorage.setItem('sesi', JSON.stringify({kode:kode, role:r.role, pelapor:state.pelapor}));
+    masukHome();
+  }catch(e){
+    $('login-status').textContent = 'Gagal terhubung — cek internet lalu coba lagi';
+    state.kode='';
+  }
+}
+
+function masukHome(){
+  var sel = $('sel-pelapor');
+  sel.innerHTML = state.pelapor.map(function(n){ return '<option>'+esc(n)+'</option>'; }).join('');
+  var last = localStorage.getItem('pelaporTerakhir');
+  if(last && state.pelapor.indexOf(last)>=0) sel.value = last;
+  sel.onchange = function(){ localStorage.setItem('pelaporTerakhir', sel.value); };
+  if(state.role==='admin') show('btn-upload-po'); else hide('btn-upload-po');
+  show('btn-logout');
+  layar('scr-home');
+}
+
+function logout(){
+  localStorage.removeItem('sesi');
+  state = { kode:'', role:'', pelapor:[], mode:'', orderAktif:null };
+  hide('btn-logout');
+  layar('scr-login');
+}
+
+function kembaliHome(){ resetFoto(); layar('scr-home'); }
+
+// ================================================================
+// MODE 1 — REPORT DARI ORDER
+// ================================================================
+async function bukaModeOrder(){
+  layar('scr-pilih-order');
+  $('order-status').textContent='Memuat order…';
+  var orders = [];
+  if(navigator.onLine){
+    try{
+      var r = await api('getOrders');
+      if(r.ok){ orders = r.orders; localStorage.setItem('cachedOrders', JSON.stringify(orders)); }
+      else { $('order-status').textContent = r.error; }
+    }catch(e){
+      orders = JSON.parse(localStorage.getItem('cachedOrders')||'[]');
+      $('order-status').textContent = 'Gagal memuat — menampilkan daftar terakhir yang tersimpan';
+    }
+  } else {
+    orders = JSON.parse(localStorage.getItem('cachedOrders')||'[]');
+    $('order-status').textContent = 'Offline — menampilkan daftar order terakhir yang tersimpan';
+  }
+  renderListOrder(orders);
+}
+
+function renderListOrder(orders){
+  var box = $('list-order');
+  if(!orders.length){
+    box.innerHTML = '<div class="card" style="text-align:center;color:var(--muted)">Tidak ada order aktif.<br>Pakai <b>Report Langsung</b> kalau barang datang tanpa order.</div>';
+    $('order-status').textContent='';
+    return;
+  }
+  box.innerHTML = orders.map(function(o,i){
+    var sisa = o.items.filter(function(it){ return it.status!=='Lengkap'; }).length;
+    return '<div class="order-pick" onclick="pilihOrder('+i+')">'+
+      '<div style="font-weight:700">'+esc(o.supplier)+'</div>'+
+      '<div style="font-size:12px;color:var(--muted)">'+esc(o.idOrder)+' · '+esc(o.tanggal)+'</div>'+
+      '<span class="tag info">'+sisa+' item belum lengkap</span></div>';
+  }).join('');
+  $('order-status').textContent='';
+  window._orders = orders;
+}
+
+function pilihOrder(i){
+  state.orderAktif = window._orders[i];
+  state.mode = 'order';
+  bukaFormReport();
+}
+
+// ================================================================
+// MODE 2 — REPORT LANGSUNG
+// ================================================================
+function bukaModeLangsung(){
+  state.orderAktif = null;
+  state.mode = 'langsung';
+  bukaFormReport();
+}
+
+function bukaFormReport(){
+  resetFoto();
+  $('inp-catatan').value='';
+  $('report-status').textContent='';
+  var itemsBox = $('report-items');
+
+  if(state.mode==='order'){
+    var o = state.orderAktif;
+    $('report-judul').textContent = 'Checklist order';
+    $('report-info').textContent = o.supplier + ' · ' + o.idOrder;
+    hide('lang-supplier-wrap'); hide('btn-tambah-item');
+    itemsBox.innerHTML = o.items.filter(function(it){ return it.status!=='Lengkap'; }).map(function(it,i){
+      var sisa = Math.max(it.qty - it.qtyDiterima, 0);
+      return '<div class="item-row" data-i="'+i+'">'+
+        '<div class="nama">'+esc(it.item)+'</div>'+
+        '<div class="detail">Order '+it.qty+' '+esc(it.satuan)+(it.qtyDiterima>0?' · sudah diterima '+it.qtyDiterima:'')+'</div>'+
+        '<div class="grid2">'+
+          '<div><label>Qty diterima</label><input type="text" inputmode="decimal" class="inp-qty" value="'+sisa+'" data-sisa="'+sisa+'" data-item="'+esc(it.item)+'" data-satuan="'+esc(it.satuan)+'" oninput="updateSesuai(this)"></div>'+
+          '<div><label>Status</label><div class="tag ok sesuai-tag" style="margin-top:10px">✅ Sesuai</div></div>'+
+        '</div>'+
+        '<label>Kondisi (opsional)</label><input class="inp-kondisi" placeholder="Baik / rusak / dll">'+
+      '</div>';
+    }).join('');
+  } else {
+    $('report-judul').textContent = 'Report langsung';
+    $('report-info').textContent = 'Barang datang tanpa order (dicatat sebagai LANGSUNG)';
+    show('lang-supplier-wrap'); show('btn-tambah-item');
+    $('inp-supplier').value='';
+    itemsBox.innerHTML='';
+    tambahBarisLangsung();
+  }
+  layar('scr-report');
+}
+
+function updateSesuai(inp){
+  var sisa = num(inp.dataset.sisa);
+  var v = num(inp.value);
+  var tag = inp.closest('.item-row').querySelector('.sesuai-tag');
+  if(v===sisa){ tag.className='tag ok sesuai-tag'; tag.textContent='✅ Sesuai'; }
+  else if(v<sisa){ tag.className='tag warn sesuai-tag'; tag.textContent='⚠️ Kurang '+(sisa-v); }
+  else { tag.className='tag info sesuai-tag'; tag.textContent='➕ Lebih '+(v-sisa); }
+}
+
+function tambahBarisLangsung(){
+  var div = document.createElement('div');
+  div.className='item-row';
+  div.innerHTML = '<div class="grid3">'+
+    '<div><label>Item</label><input class="inp-item" placeholder="Nama barang"></div>'+
+    '<div><label>Qty</label><input type="text" inputmode="decimal" class="inp-qty" value="1"></div>'+
+    '<div><label>Satuan</label><input class="inp-satuan" placeholder="kg/pcs"></div>'+
+    '</div>'+
+    '<div style="text-align:right"><button class="del-x" onclick="this.closest(\'.item-row\').remove()">✕ hapus</button></div>';
+  $('report-items').appendChild(div);
+}
+
+// ================================================================
+// FOTO — kompres di HP, kirim chunk 50KB
+// ================================================================
+function resetFoto(){
+  foto = { nota:null, barang:null };
+  $('box-nota').className='foto-box'; $('box-nota').textContent='📷 Ambil foto nota';
+  $('box-barang').className='foto-box'; $('box-barang').textContent='📷 Ambil foto barang';
+  $('file-nota').value=''; $('file-barang').value='';
+}
+
+function pilihFoto(jenis){
+  var file = $('file-'+jenis).files[0];
+  if(!file) return;
+  kompresGambar(file, function(hasil){
+    foto[jenis] = hasil;
+    var box = $('box-'+jenis);
+    box.className='foto-box done';
+    box.textContent = '✅ Foto ' + jenis + ' siap ('+Math.round(hasil.base64.length*3/4/1024)+' KB)';
+  });
+}
+
+function kompresGambar(file, cb){
+  var reader = new FileReader();
+  reader.onload = function(ev){
+    var img = new Image();
+    img.onload = function(){
+      var maxSisi = 1280;
+      var skala = Math.min(1, maxSisi / Math.max(img.width, img.height));
+      var c = document.createElement('canvas');
+      c.width = Math.round(img.width*skala); c.height = Math.round(img.height*skala);
+      c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+      var dataUrl = c.toDataURL('image/jpeg',0.72);
+      cb({ base64: dataUrl.split(',')[1], mime:'image/jpeg', name: file.name.replace(/\.[^.]+$/,'')+'.jpg' });
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function bacaFileBase64(file, mimeFallback, cb){
+  var reader = new FileReader();
+  reader.onload = function(ev){
+    cb({ base64: ev.target.result.split(',')[1], mime: file.type || mimeFallback, name: file.name });
+  };
+  reader.readAsDataURL(file);
+}
+
+async function uploadFile(f, labelStatus, elStatus){
+  var uploadId = 'up'+Date.now()+Math.floor(Math.random()*1000);
+  var total = Math.ceil(f.base64.length / CHUNK_SIZE);
+  for(var i=0;i<total;i++){
+    var chunk = f.base64.substr(i*CHUNK_SIZE, CHUNK_SIZE);
+    var ok=false;
+    for(var coba=1;coba<=3 && !ok;coba++){
+      try{
+        var r = await api('uploadChunk',{uploadId:uploadId, index:i, total:total, data:chunk});
+        ok = r.ok;
+      }catch(e){ ok=false; }
+      if(!ok && coba===3) throw new Error('Upload '+labelStatus+' gagal di bagian '+(i+1)+'/'+total);
+    }
+    if(elStatus) elStatus.textContent = 'Mengunggah '+labelStatus+' '+(i+1)+'/'+total+'…';
+  }
+  var fin = await api('finalizeUpload',{uploadId:uploadId, total:total, filename:f.name, mimeType:f.mime});
+  if(!fin.ok) throw new Error(fin.error);
+  return fin.fileId;
+}
+
+// ================================================================
+// KIRIM REPORT (online langsung / offline masuk antrian)
+// ================================================================
+function kumpulkanPayload(){
+  var items=[];
+  if(state.mode==='order'){
+    document.querySelectorAll('#report-items .item-row').forEach(function(row){
+      var inp = row.querySelector('.inp-qty');
+      var qty = num(inp.value);
+      var sisa = num(inp.dataset.sisa);
+      items.push({
+        item: inp.dataset.item, qtyDiterima: qty, satuan: inp.dataset.satuan,
+        sesuai: qty===sisa?'Ya':(qty<sisa?'Kurang':'Lebih'),
+        kondisi: row.querySelector('.inp-kondisi').value.trim()
+      });
+    });
+  } else {
+    document.querySelectorAll('#report-items .item-row').forEach(function(row){
+      var nama = row.querySelector('.inp-item').value.trim();
+      if(!nama) return;
+      items.push({
+        item: nama, qtyDiterima: num(row.querySelector('.inp-qty').value),
+        satuan: row.querySelector('.inp-satuan').value.trim(), sesuai:'Ya', kondisi:''
+      });
+    });
+  }
+  return {
+    idOrder: state.mode==='order' ? state.orderAktif.idOrder : '',
+    supplier: state.mode==='order' ? state.orderAktif.supplier : $('inp-supplier').value.trim(),
+    items: items,
+    catatan: $('inp-catatan').value.trim(),
+    pelapor: $('sel-pelapor').value
+  };
+}
+
+async function kirimReport(){
+  var p = kumpulkanPayload();
+  var st = $('report-status');
+  if(!p.items.length){ st.textContent='Isi minimal satu item'; return; }
+  if(state.mode==='langsung' && !p.supplier){ st.textContent='Isi nama supplier'; return; }
+  if(!foto.nota){ st.textContent='Foto nota wajib — ambil dulu'; return; }
+  if(!p.pelapor){ st.textContent='Pilih nama pelapor'; return; }
+
+  $('btn-kirim').disabled = true;
+
+  if(!navigator.onLine){
+    await simpanKeAntrian(p);
+    $('btn-kirim').disabled = false;
+    tampilSukses('Tersimpan offline 📴','Laporan akan terkirim otomatis saat HP kembali online. Jangan hapus aplikasi.');
+    updatePendingBadge();
+    return;
+  }
+
+  try{
+    st.textContent='Mengunggah foto…';
+    var notaId = await uploadFile(foto.nota,'foto nota',st);
+    var barangId = foto.barang ? await uploadFile(foto.barang,'foto barang',st) : '';
+    st.textContent='Menyimpan laporan…';
+    var r = await api('simpanPenerimaan', Object.assign({}, p, {fotoNotaId:notaId, fotoBarangId:barangId}));
+    if(!r.ok) throw new Error(r.error);
+    localStorage.removeItem('cachedOrders'); // paksa refresh daftar order
+    tampilSukses('Laporan terkirim ✅', r.notif && r.notif.terkirim ? 'Notifikasi Telegram sudah masuk ke owner.' : 'Tersimpan di spreadsheet. (Notif Telegram gagal — owner tetap bisa lihat di sheet.)');
+  }catch(e){
+    // Gagal di tengah jalan saat online → amankan ke antrian, jangan hilang
+    await simpanKeAntrian(p);
+    tampilSukses('Tersimpan sementara 📴','Koneksi bermasalah. Laporan diamankan dan akan dikirim otomatis.');
+    updatePendingBadge();
+  }
+  $('btn-kirim').disabled = false;
+}
+
+function tampilSukses(judul, detail){
+  $('sukses-judul').textContent = judul;
+  $('sukses-detail').textContent = detail;
+  resetFoto();
+  layar('scr-sukses');
+}
+
+// ================================================================
+// ANTRIAN OFFLINE — IndexedDB (muat foto besar, localStorage tidak)
+// ================================================================
+function openDB(){
+  return new Promise(function(res,rej){
+    var req = indexedDB.open('restless-receiving',1);
+    req.onupgradeneeded = function(){ req.result.createObjectStore('queue',{keyPath:'id',autoIncrement:true}); };
+    req.onsuccess = function(){ res(req.result); };
+    req.onerror = function(){ rej(req.error); };
+  });
+}
+
+async function simpanKeAntrian(payload){
+  if(!db) db = await openDB();
+  return new Promise(function(res,rej){
+    var tx = db.transaction('queue','readwrite');
+    tx.objectStore('queue').add({ payload:payload, fotoNota:foto.nota, fotoBarang:foto.barang, dibuat:Date.now() });
+    tx.oncomplete = res; tx.onerror = function(){ rej(tx.error); };
+  });
+}
+
+async function ambilAntrian(){
+  if(!db) db = await openDB();
+  return new Promise(function(res,rej){
+    var req = db.transaction('queue','readonly').objectStore('queue').getAll();
+    req.onsuccess = function(){ res(req.result); };
+    req.onerror = function(){ rej(req.error); };
+  });
+}
+
+async function hapusAntrian(id){
+  if(!db) db = await openDB();
+  return new Promise(function(res,rej){
+    var tx = db.transaction('queue','readwrite');
+    tx.objectStore('queue').delete(id);
+    tx.oncomplete = res; tx.onerror = function(){ rej(tx.error); };
+  });
+}
+
+var sedangSync = false;
+async function syncAntrian(){
+  if(sedangSync || !navigator.onLine || !state.kode) return;
+  sedangSync = true;
+  try{
+    var antrian = await ambilAntrian();
+    for(var i=0;i<antrian.length;i++){
+      var q = antrian[i];
+      try{
+        var notaId = await uploadFile(q.fotoNota,'foto nota',null);
+        var barangId = q.fotoBarang ? await uploadFile(q.fotoBarang,'foto barang',null) : '';
+        var r = await api('simpanPenerimaan', Object.assign({}, q.payload, {fotoNotaId:notaId, fotoBarangId:barangId}));
+        if(r.ok) await hapusAntrian(q.id);
+        else if(!r.retryable) { /* error permanen: biarkan di antrian agar tetap terlihat, jangan hapus data */ break; }
+      }catch(e){ break; } // koneksi putus lagi — coba lain kali
+    }
+  } finally {
+    sedangSync = false;
+    updatePendingBadge();
+  }
+}
+
+async function updatePendingBadge(){
+  try{
+    var antrian = await ambilAntrian();
+    var b = $('banner-pending');
+    if(antrian.length>0){
+      b.textContent = '⏳ '+antrian.length+' laporan tertunda — akan terkirim otomatis saat online';
+      b.style.display='block';
+    } else b.style.display='none';
+  }catch(e){}
+}
+
+// ================================================================
+// UPLOAD PO (ADMIN) v2 — XLSX dibaca dari sel (tanpa AI), PDF/foto via Gemini.
+// Satu file bisa berisi banyak vendor → preview per vendor → satu order per vendor.
+// ================================================================
+function bukaUploadPO(){
+  if(!navigator.onLine){ alert('Upload PO butuh internet. Coba lagi saat online.'); return; }
+  $('po-status').textContent='';
+  $('po-save-status').textContent='';
+  $('box-po').className='foto-box'; $('box-po').textContent='🧾 Pilih file purchasing order';
+  $('file-po').value='';
+  hide('po-step2'); show('po-step1');
+  layar('scr-po');
+}
+
+var MIME_XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+async function prosesPO(){
+  var file = $('file-po').files[0];
+  if(!file) return;
+  var st = $('po-status');
+  var isXlsx = /\.xlsx?$/i.test(file.name) || /spreadsheet|ms-excel/i.test(file.type||'');
+  var isPdf = file.type==='application/pdf' || /\.pdf$/i.test(file.name);
+
+  var lanjut = async function(f){
+    try{
+      st.textContent='Mengunggah dokumen…';
+      var fileId = await uploadFile(f,'dokumen PO',st);
+      st.textContent = isXlsx ? 'Membaca sel Excel…' : 'AI sedang membaca dokumen…';
+      var r = await api('parsePOMulti',{fileId:fileId});
+      if(!r.ok){ st.textContent = r.error; return; }
+      isiPreviewPOMulti(r.hasil, r.sumber);
+      st.textContent='';
+    }catch(e){ st.textContent = 'Gagal: '+e.message; }
+  };
+
+  if(isXlsx) bacaFileBase64(file, MIME_XLSX, lanjut);
+  else if(isPdf) bacaFileBase64(file, 'application/pdf', lanjut);
+  else kompresGambar(file, lanjut);
+}
+
+function isiPreviewPOMulti(hasil, sumber){
+  $('po-sumber').textContent = sumber==='xlsx'
+    ? '✅ Dibaca langsung dari sel Excel (tanpa AI) — tetap cek sebelum simpan'
+    : '🤖 Dibaca oleh AI dari dokumen — WAJIB teliti, AI bisa salah baca';
+  $('po-tanggal').value = (hasil.tanggal && hasil.tanggal!=='-') ? hasil.tanggal : '';
+  $('po-vendors').innerHTML='';
+  (hasil.vendors||[]).forEach(function(v){ tambahVendorPO(v.supplier, v.items); });
+  show('po-step2');
+}
+
+function tambahVendorPO(supplier, items){
+  var div = document.createElement('div');
+  div.className='card pov-vendor';
+  div.innerHTML =
+    '<div class="pov-head"><label>Supplier / vendor</label>'+
+    '<button class="del-x" onclick="this.closest(\'.pov-vendor\').remove()">✕ hapus vendor</button></div>'+
+    '<input class="pov-supplier" value="'+esc(supplier)+'" placeholder="Nama vendor">'+
+    '<div class="pov-items" style="margin-top:8px"></div>'+
+    '<button class="btn small secondary" onclick="tambahBarisVendor(this)">+ Tambah item</button>';
+  $('po-vendors').appendChild(div);
+  (items||[]).forEach(function(it){ tambahBarisKe(div.querySelector('.pov-items'), it.item, it.qty, it.satuan); });
+  if(!(items||[]).length) tambahBarisKe(div.querySelector('.pov-items'),'',0,'');
+}
+
+function tambahBarisVendor(btn){
+  tambahBarisKe(btn.closest('.pov-vendor').querySelector('.pov-items'),'',0,'');
+}
+
+function tambahBarisKe(box, item, qty, satuan){
+  var div = document.createElement('div');
+  div.className='item-row';
+  div.innerHTML = '<div class="grid3">'+
+    '<div><label>Item</label><input class="pov-item" value="'+esc(item)+'"></div>'+
+    '<div><label>Qty</label><input type="text" inputmode="decimal" class="pov-qty" value="'+esc(qty||0)+'"></div>'+
+    '<div><label>Satuan</label><input class="pov-satuan" value="'+esc(satuan==='-'?'':satuan)+'"></div>'+
+    '</div>'+
+    '<div style="text-align:right"><button class="del-x" onclick="this.closest(\'.item-row\').remove()">✕ hapus</button></div>';
+  box.appendChild(div);
+}
+
+async function simpanSemuaOrder(){
+  var st = $('po-save-status');
+  var vendors=[];
+  document.querySelectorAll('#po-vendors .pov-vendor').forEach(function(vd){
+    var sup = vd.querySelector('.pov-supplier').value.trim();
+    var items=[];
+    vd.querySelectorAll('.item-row').forEach(function(row){
+      var nama = row.querySelector('.pov-item').value.trim();
+      if(!nama) return;
+      items.push({ item:nama, qty:num(row.querySelector('.pov-qty').value), satuan:row.querySelector('.pov-satuan').value.trim() });
+    });
+    if(sup && items.length) vendors.push({supplier:sup, items:items});
+  });
+  if(!vendors.length){ st.textContent='Minimal satu vendor dengan satu item bernama'; return; }
+  st.textContent='Menyimpan…';
+  try{
+    var r = await api('simpanOrderMulti',{ tanggal:$('po-tanggal').value.trim(), vendors:vendors });
+    if(!r.ok){ st.textContent=r.error; return; }
+    localStorage.removeItem('cachedOrders');
+    var ringkas = r.orders.map(function(o){ return o.supplier+' ('+o.jumlahItem+' item)'; }).join(', ');
+    tampilSukses('Order tersimpan ✅', r.orders.length+' order dibuat — '+ringkas+'. Semuanya sekarang jadi checklist di HP tim.');
+  }catch(e){ st.textContent='Gagal: '+e.message; }
+}
+
+// ================================================================
+// ONLINE/OFFLINE + STARTUP
+// ================================================================
+function updateBannerOffline(){
+  $('banner-offline').style.display = navigator.onLine ? 'none' : 'block';
+}
+window.addEventListener('online', function(){ updateBannerOffline(); syncAntrian(); });
+window.addEventListener('offline', updateBannerOffline);
+
+window.addEventListener('load', function(){
+  updateBannerOffline();
+  if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+  var sesi = localStorage.getItem('sesi');
+  if(sesi){
+    try{
+      var s = JSON.parse(sesi);
+      state.kode=s.kode; state.role=s.role; state.pelapor=s.pelapor||[];
+      masukHome();
+    }catch(e){ layar('scr-login'); }
+  } else layar('scr-login');
+  updatePendingBadge();
+  syncAntrian();
+});
+</script>
+</body>
+</html>
