@@ -195,7 +195,7 @@ function num(v){ var n=Number(String(v==null?'':v).trim().replace(',','.')); ret
 
 async function api(action, data){
   var body = JSON.stringify(Object.assign({ action:action, key:state.kode }, data||{}));
-  var res = await fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:body });
+  var res = await fetch(GAS_URL, { method:'GET', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:body });
   return res.json();
 }
 
