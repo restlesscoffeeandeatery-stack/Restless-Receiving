@@ -2,7 +2,7 @@
 // App shell di-cache supaya aplikasi tetap bisa DIBUKA saat offline.
 // Request ke GAS (data & upload) selalu network-only — antrian offline ditangani IndexedDB di index.html.
 
-var CACHE = 'restless-receiving-v2';
+var CACHE = 'restless-receiving-v4';
 var SHELL = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', function (e) {
