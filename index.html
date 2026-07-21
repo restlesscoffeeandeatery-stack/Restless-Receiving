@@ -157,6 +157,11 @@
       <span><b>Report Langsung</b><small>Barang datang tanpa order</small></span>
       <span class="chev">›</span>
     </button>
+    <button class="tile" onclick="bukaRiwayat()">
+      <span class="tile-ic">🕓</span>
+      <span><b>Riwayat</b><small>Lihat laporan penerimaan sebelumnya</small></span>
+      <span class="chev">›</span>
+    </button>
     <button class="tile hidden" id="btn-upload-po" onclick="bukaUploadPO()">
       <span class="tile-ic">🧾</span>
       <span><b>Upload PO</b><small>Excel / PDF / foto → checklist per divisi</small></span>
@@ -187,6 +192,31 @@
     <div id="divisi-locked-label" class="divisi-sep hidden"></div>
     <div id="list-order"></div>
     <div class="status-line" id="order-status"></div>
+  </div>
+
+  <!-- RIWAYAT -->
+  <div id="scr-riwayat" class="scr hidden">
+    <div class="topnav">
+      <button class="aktif" onclick="void(0)">Riwayat</button>
+      <button onclick="kembaliHome()">← Kembali</button>
+    </div>
+    <div class="card hidden" id="riwayat-divisi-filter-wrap">
+      <label>Filter Divisi</label>
+      <select id="sel-riwayat-divisi" onchange="localStorage.setItem('filterDivisiRiwayat', this.value); renderRiwayat();">
+        <option value="semua">Semua Divisi</option>
+        <option value="BAR">🍸 BAR</option>
+        <option value="KITCHEN">🍳 KITCHEN</option>
+        <option value="SERVICE">🛎️ SERVICE</option>
+      </select>
+    </div>
+    <div id="riwayat-divisi-locked-label" class="divisi-sep hidden"></div>
+    <div class="card">
+      <label>Cari</label>
+      <input id="inp-riwayat-cari" placeholder="Supplier, item, atau nama pelapor…" oninput="renderRiwayat()">
+    </div>
+    <div class="status-line hidden" id="riwayat-batas-note"></div>
+    <div id="list-riwayat"></div>
+    <div class="status-line" id="riwayat-status"></div>
   </div>
 
   <!-- FORM REPORT (dipakai mode order & langsung) -->
@@ -320,7 +350,7 @@ function $(id){ return document.getElementById(id); }
 function show(id){ $(id).classList.remove('hidden'); }
 function hide(id){ $(id).classList.add('hidden'); }
 function layar(id){
-  ['scr-login','scr-home','scr-pilih-order','scr-report','scr-po','scr-karyawan','scr-sukses'].forEach(hide);
+  ['scr-login','scr-home','scr-pilih-order','scr-riwayat','scr-report','scr-po','scr-karyawan','scr-sukses'].forEach(hide);
   show(id);
 }
 function esc(s){ var d=document.createElement('div'); d.textContent=String(s==null?'':s); return d.innerHTML.replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
@@ -557,6 +587,136 @@ function tambahBarisLangsung(){
     '</div>'+
     '<div style="text-align:right"><button class="del-x" onclick="this.closest(\'.item-row\').remove()">✕ hapus</button></div>';
   $('report-items').appendChild(div);
+}
+
+// ================================================================
+// RIWAYAT — v5: lihat laporan penerimaan sebelumnya. Kunci/dropdown divisi memakai pola
+// yang sama dengan daftar Order (server mengunci untuk staf, dropdown untuk admin/tim/manajer).
+// Di-cache lokal supaya tetap bisa dibuka (read-only) saat offline.
+// ================================================================
+function rupiahFmt(n){ return 'Rp '+Math.round(n).toLocaleString('id-ID'); }
+
+async function bukaRiwayat(){
+  layar('scr-riwayat');
+  $('riwayat-status').textContent='Memuat riwayat…';
+  $('inp-riwayat-cari').value='';
+  $('riwayat-batas-note').className='status-line hidden';
+
+  if(state.divisi){
+    hide('riwayat-divisi-filter-wrap');
+    var lbl = $('riwayat-divisi-locked-label');
+    lbl.className='divisi-sep';
+    lbl.textContent = (DIVISI_ICON[state.divisi]||'') + ' Divisi ' + state.divisi;
+  } else {
+    show('riwayat-divisi-filter-wrap');
+    $('riwayat-divisi-locked-label').className='divisi-sep hidden';
+    var saved = localStorage.getItem('filterDivisiRiwayat');
+    if(saved) $('sel-riwayat-divisi').value = saved;
+  }
+
+  if(navigator.onLine){
+    try{
+      var r = await api('getHistory');
+      if(r.ok){
+        window._riwayatMentah = r.riwayat;
+        localStorage.setItem('cachedRiwayat', JSON.stringify(r.riwayat));
+        if(r.dibatasi){
+          var n = $('riwayat-batas-note');
+          n.className='status-line';
+          n.textContent = 'Menampilkan '+r.riwayat.length+' laporan terbaru. Riwayat lebih lama tetap tersimpan lengkap di spreadsheet.';
+        }
+      } else {
+        $('riwayat-status').textContent = r.error;
+        window._riwayatMentah = JSON.parse(localStorage.getItem('cachedRiwayat')||'[]');
+      }
+    }catch(e){
+      window._riwayatMentah = JSON.parse(localStorage.getItem('cachedRiwayat')||'[]');
+      $('riwayat-status').textContent = 'Gagal memuat — menampilkan riwayat tersimpan terakhir';
+    }
+  } else {
+    window._riwayatMentah = JSON.parse(localStorage.getItem('cachedRiwayat')||'[]');
+    $('riwayat-status').textContent = 'Offline — menampilkan riwayat tersimpan terakhir';
+  }
+  renderRiwayat();
+}
+
+function kartuRiwayat(g){
+  var warna = DIVISI_BORDER[g.divisi] || 'var(--amber)';
+  var tagDiv = g.divisi ? ('<span class="tag '+(DIVISI_CLASS[g.divisi]||'info')+'">'+(DIVISI_ICON[g.divisi]||'')+' '+esc(g.divisi)+'</span> ') : '';
+  var tagKurang = g.items.some(function(it){ return it.sesuai==='Kurang'; }) ? '<span class="tag warn">⚠️ Ada kurang</span>' : '';
+  var itemHtml = g.items.map(function(it){
+    var tanda = it.sesuai==='Kurang' ? '⚠️' : (it.sesuai==='Lebih' ? '➕' : '✅');
+    return '<div style="font-size:13px;margin:3px 0">'+tanda+' '+esc(it.item)+' — '+it.qty+' '+esc(it.satuan)+
+      (it.kondisi ? ' <span style="color:var(--muted)">('+esc(it.kondisi)+')</span>' : '')+'</div>';
+  }).join('');
+  var fotoHtml = '';
+  if(g.fotoNota.length) fotoHtml += '<a href="'+esc(g.fotoNota[0])+'" target="_blank" rel="noopener" style="font-size:12px;color:var(--info);margin-right:14px;text-decoration:none;font-weight:700">📎 Nota ('+g.fotoNota.length+')</a>';
+  if(g.fotoBarang.length) fotoHtml += '<a href="'+esc(g.fotoBarang[0])+'" target="_blank" rel="noopener" style="font-size:12px;color:var(--info);text-decoration:none;font-weight:700">📎 Barang ('+g.fotoBarang.length+')</a>';
+
+  return '<div class="card" style="border-left:4px solid '+warna+'">'+
+    '<div style="font-weight:800">'+esc(g.supplier)+'</div>'+
+    '<div style="font-size:12px;color:var(--muted);margin:2px 0 8px">'+esc(g.timestamp)+' · '+esc(g.pelapor)+' · '+(g.idOrder && g.idOrder!=='LANGSUNG' ? esc(g.idOrder) : 'Langsung')+'</div>'+
+    (tagDiv || tagKurang ? '<div style="margin-bottom:8px">'+tagDiv+tagKurang+'</div>' : '')+
+    itemHtml+
+    (g.catatan ? '<div style="font-size:13px;color:var(--muted);margin-top:8px;font-style:italic">"'+esc(g.catatan)+'"</div>' : '')+
+    (g.totalHarga>0 ? '<div style="font-size:14px;font-weight:800;margin-top:8px">💰 '+rupiahFmt(g.totalHarga)+'</div>' : '')+
+    (fotoHtml ? '<div style="margin-top:10px">'+fotoHtml+'</div>' : '')+
+  '</div>';
+}
+
+function renderRiwayat(){
+  var mentah = window._riwayatMentah || [];
+  var box = $('list-riwayat');
+  if(!mentah.length){
+    box.innerHTML = '<div class="card" style="text-align:center;color:var(--muted)">Belum ada riwayat laporan.</div>';
+    $('riwayat-status').textContent='';
+    return;
+  }
+
+  var list = mentah;
+  var modeGrup = false;
+  if(!state.divisi){
+    var filter = $('sel-riwayat-divisi').value;
+    if(filter && filter!=='semua'){
+      list = mentah.filter(function(g){ return (g.divisi||'').toUpperCase()===filter; });
+    } else {
+      modeGrup = true;
+    }
+  }
+
+  var cari = $('inp-riwayat-cari').value.trim().toLowerCase();
+  if(cari){
+    list = list.filter(function(g){
+      if(g.supplier.toLowerCase().indexOf(cari)>=0) return true;
+      if(g.pelapor.toLowerCase().indexOf(cari)>=0) return true;
+      return g.items.some(function(it){ return it.item.toLowerCase().indexOf(cari)>=0; });
+    });
+    modeGrup = false; // hasil pencarian tampil flat, tidak perlu dikelompokkan per divisi
+  }
+
+  if(!list.length){
+    box.innerHTML = '<div class="card" style="text-align:center;color:var(--muted)">Tidak ada riwayat yang cocok.</div>';
+    $('riwayat-status').textContent='';
+    return;
+  }
+
+  if(modeGrup){
+    var groups={}; DIVISI_LIST.concat(['']).forEach(function(k){ groups[k]=[]; });
+    list.forEach(function(g){
+      var k = DIVISI_LIST.indexOf((g.divisi||'').toUpperCase())>=0 ? (g.divisi||'').toUpperCase() : '';
+      groups[k].push(g);
+    });
+    var html='';
+    DIVISI_LIST.concat(['']).forEach(function(k){
+      if(!groups[k].length) return;
+      html += '<div class="divisi-sep">'+(k?(DIVISI_ICON[k]+' '+k):'🗂️ Belum ditentukan')+'</div>';
+      groups[k].forEach(function(g){ html += kartuRiwayat(g); });
+    });
+    box.innerHTML = html;
+  } else {
+    box.innerHTML = list.map(kartuRiwayat).join('');
+  }
+  $('riwayat-status').textContent='';
 }
 
 // ================================================================
