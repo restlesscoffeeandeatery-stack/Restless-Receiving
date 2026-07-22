@@ -307,6 +307,7 @@
         <option value="KITCHEN">🍳 KITCHEN</option>
         <option value="SERVICE">🛎️ SERVICE</option>
       </select>
+      <label class="switch" style="text-transform:none;margin-top:10px"><input type="checkbox" id="kar-baru-bisa-selesai"> Bisa tandai order selesai (izin khusus)</label>
       <button class="btn small" onclick="tambahKaryawanBaru()">+ Tambah</button>
       <div class="status-line" id="kar-tambah-status"></div>
     </div>
@@ -339,7 +340,7 @@ var DIVISI_ICON = {BAR:'🍸', KITCHEN:'🍳', SERVICE:'🛎️'};
 var DIVISI_CLASS = {BAR:'bar', KITCHEN:'kitchen', SERVICE:'service'};
 var DIVISI_BORDER = {BAR:'#8a5cc4', KITCHEN:'#2e7d4f', SERVICE:'#3572b0'};
 
-var state = { kode:'', role:'', nama:'', divisi:'', pelapor:[], mode:'', orderAktif:null };
+var state = { kode:'', role:'', nama:'', divisi:'', bisaSelesai:false, pelapor:[], mode:'', orderAktif:null };
 var foto = { nota:[], barang:[] }; // array of {base64, mime}
 var db = null;
 
@@ -381,8 +382,8 @@ async function login(){
   try{
     var r = await api('login');
     if(!r.ok){ $('login-status').textContent = r.error; state.kode=''; return; }
-    state.role = r.role; state.nama = r.nama || ''; state.divisi = r.divisi || ''; state.pelapor = r.pelapor || [];
-    localStorage.setItem('sesi', JSON.stringify({kode:kode, role:r.role, nama:state.nama, divisi:state.divisi, pelapor:state.pelapor}));
+    state.role = r.role; state.nama = r.nama || ''; state.divisi = r.divisi || ''; state.bisaSelesai = !!r.bisaSelesai; state.pelapor = r.pelapor || [];
+    localStorage.setItem('sesi', JSON.stringify({kode:kode, role:r.role, nama:state.nama, divisi:state.divisi, bisaSelesai:state.bisaSelesai, pelapor:state.pelapor}));
     masukHome();
   }catch(e){
     $('login-status').textContent = 'Gagal terhubung — cek internet lalu coba lagi';
@@ -413,7 +414,7 @@ function masukHome(){
 
 function logout(){
   localStorage.removeItem('sesi');
-  state = { kode:'', role:'', nama:'', divisi:'', pelapor:[], mode:'', orderAktif:null };
+  state = { kode:'', role:'', nama:'', divisi:'', bisaSelesai:false, pelapor:[], mode:'', orderAktif:null };
   hide('btn-logout');
   layar('scr-login');
 }
@@ -465,10 +466,34 @@ function kartuOrder(o){
   var sisa = o.items.filter(function(it){ return it.status!=='Lengkap'; }).length;
   var warna = DIVISI_BORDER[o.divisi] || 'var(--amber)';
   var tagDiv = o.divisi ? ('<span class="tag '+(DIVISI_CLASS[o.divisi]||'info')+'">'+(DIVISI_ICON[o.divisi]||'')+' '+esc(o.divisi)+'</span> ') : '';
+  var bisaSelesai = (state.role==='admin' || state.bisaSelesai);
+  var tombolSelesai = bisaSelesai ? (
+    '<button class="btn small secondary" style="margin-top:10px;display:block" data-idorder="'+esc(o.idOrder)+'" data-supplier="'+esc(o.supplier)+'" onclick="event.stopPropagation(); tandaiSelesaiOrder(this)">✓ Tandai Selesai</button>'
+  ) : '';
   return '<div class="order-pick" style="border-left-color:'+warna+'" onclick="pilihOrderById(\''+o.idOrder+'\')">'+
     '<div style="font-weight:800">'+esc(o.supplier)+'</div>'+
     '<div style="font-size:12px;color:var(--muted);margin:2px 0 6px">'+esc(o.idOrder)+' · '+esc(o.tanggal)+'</div>'+
-    tagDiv+'<span class="tag info">'+sisa+' item belum lengkap</span></div>';
+    tagDiv+'<span class="tag info">'+sisa+' item belum lengkap</span>'+
+    tombolSelesai+
+  '</div>';
+}
+
+async function tandaiSelesaiOrder(btn){
+  var idOrder = btn.dataset.idorder;
+  var supplier = btn.dataset.supplier;
+  if(!confirm('Tandai order '+supplier+' ('+idOrder+') selesai?\n\nSisa item yang belum diterima penuh akan ditutup dan tidak muncul lagi di checklist. Qty yang sudah tercatat TETAP apa adanya di spreadsheet — tidak ada angka yang diubah.')) return;
+  btn.disabled = true;
+  var teksAsli = btn.textContent;
+  btn.textContent = 'Menyimpan…';
+  try{
+    var r = await api('tandaiSelesai', {idOrder: idOrder});
+    if(!r.ok){ alert(r.error); btn.disabled=false; btn.textContent=teksAsli; return; }
+    localStorage.removeItem('cachedOrders');
+    window._ordersMentah = (window._ordersMentah||[]).filter(function(o){ return o.idOrder!==idOrder; });
+    renderListOrder();
+  }catch(e){
+    alert('Gagal: '+e.message); btn.disabled=false; btn.textContent=teksAsli;
+  }
 }
 
 function renderListOrder(){
@@ -1126,6 +1151,7 @@ function renderKaryawan(list){
       '<label>Divisi</label>'+
       '<select class="kar-divisi"><option value="">— pilih divisi —</option>'+opsi+'</select>'+
       peringatan+
+      '<label class="switch" style="text-transform:none;margin-top:10px"><input type="checkbox" class="kar-bisa-selesai"'+(k.bisaSelesai?' checked':'')+'> Bisa tandai order selesai (izin khusus)</label>'+
       '<div class="kar-foot">'+
         '<label class="switch" style="text-transform:none;margin:0"><input type="checkbox" class="kar-aktif"'+(k.aktif?' checked':'')+'> Aktif</label>'+
         '<button class="btn small" onclick="simpanKaryawanRow(this)">Simpan</button>'+
@@ -1141,14 +1167,15 @@ async function tambahKaryawanBaru(){
   var nama = $('kar-baru-nama').value.trim();
   var kode = $('kar-baru-kode').value.trim();
   var divisi = $('kar-baru-divisi').value;
+  var bisaSelesai = $('kar-baru-bisa-selesai').checked;
   if(!nama || !kode){ st.textContent='Isi nama dan kode akses'; return; }
   if(!divisi){ st.textContent='Pilih Divisi karyawan ini'; return; }
   st.textContent='Menyimpan…';
   try{
-    var r = await api('tambahKaryawan',{nama:nama, kode:kode, divisi:divisi});
+    var r = await api('tambahKaryawan',{nama:nama, kode:kode, divisi:divisi, bisaSelesai:bisaSelesai});
     if(!r.ok){ st.textContent=r.error; return; }
     st.textContent='✅ '+nama+' ditambahkan ('+divisi+')';
-    $('kar-baru-nama').value=''; $('kar-baru-kode').value=''; $('kar-baru-divisi').value='';
+    $('kar-baru-nama').value=''; $('kar-baru-kode').value=''; $('kar-baru-divisi').value=''; $('kar-baru-bisa-selesai').checked=false;
     muatKaryawan();
   }catch(e){ st.textContent='Gagal: '+e.message; }
 }
@@ -1165,7 +1192,8 @@ async function simpanKaryawanRow(btn){
       nama: row.querySelector('.kar-nama').value.trim(),
       kode: row.querySelector('.kar-kode').value.trim(),
       aktif: row.querySelector('.kar-aktif').checked,
-      divisi: divisi
+      divisi: divisi,
+      bisaSelesai: row.querySelector('.kar-bisa-selesai').checked
     });
     if(!r.ok){ st.textContent=r.error; return; }
     st.textContent='✅ Tersimpan';
@@ -1203,7 +1231,7 @@ window.addEventListener('load', function(){
   if(sesi){
     try{
       var s = JSON.parse(sesi);
-      state.kode=s.kode; state.role=s.role; state.nama=s.nama||''; state.divisi=s.divisi||''; state.pelapor=s.pelapor||[];
+      state.kode=s.kode; state.role=s.role; state.nama=s.nama||''; state.divisi=s.divisi||''; state.bisaSelesai=!!s.bisaSelesai; state.pelapor=s.pelapor||[];
       masukHome();
     }catch(e){ layar('scr-login'); }
   } else layar('scr-login');
