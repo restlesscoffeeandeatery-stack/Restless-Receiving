@@ -669,8 +669,9 @@ function kartuRiwayat(g){
   var warna = DIVISI_BORDER[g.divisi] || 'var(--amber)';
   var tagDiv = g.divisi ? ('<span class="tag '+(DIVISI_CLASS[g.divisi]||'info')+'">'+(DIVISI_ICON[g.divisi]||'')+' '+esc(g.divisi)+'</span> ') : '';
   var tagKurang = g.items.some(function(it){ return it.sesuai==='Kurang'; }) ? '<span class="tag warn">⚠️ Ada kurang</span>' : '';
+  var tagDitutup = g.items.some(function(it){ return it.sesuai==='Ditutup'; }) ? '<span class="tag info">🔒 Ditutup Manual</span>' : '';
   var itemHtml = g.items.map(function(it){
-    var tanda = it.sesuai==='Kurang' ? '⚠️' : (it.sesuai==='Lebih' ? '➕' : '✅');
+    var tanda = it.sesuai==='Kurang' ? '⚠️' : (it.sesuai==='Lebih' ? '➕' : (it.sesuai==='Ditutup' ? '🔒' : '✅'));
     return '<div style="font-size:13px;margin:3px 0">'+tanda+' '+esc(it.item)+' — '+it.qty+' '+esc(it.satuan)+
       (it.kondisi ? ' <span style="color:var(--muted)">('+esc(it.kondisi)+')</span>' : '')+'</div>';
   }).join('');
@@ -681,7 +682,7 @@ function kartuRiwayat(g){
   return '<div class="card" style="border-left:4px solid '+warna+'">'+
     '<div style="font-weight:800">'+esc(g.supplier)+'</div>'+
     '<div style="font-size:12px;color:var(--muted);margin:2px 0 8px">'+esc(g.timestamp)+' · '+esc(g.pelapor)+' · '+(g.idOrder && g.idOrder!=='LANGSUNG' ? esc(g.idOrder) : 'Langsung')+'</div>'+
-    (tagDiv || tagKurang ? '<div style="margin-bottom:8px">'+tagDiv+tagKurang+'</div>' : '')+
+    (tagDiv || tagKurang || tagDitutup ? '<div style="margin-bottom:8px">'+tagDiv+tagKurang+tagDitutup+'</div>' : '')+
     itemHtml+
     (g.catatan ? '<div style="font-size:13px;color:var(--muted);margin-top:8px;font-style:italic">"'+esc(g.catatan)+'"</div>' : '')+
     (g.totalHarga>0 ? '<div style="font-size:14px;font-weight:800;margin-top:8px">💰 '+rupiahFmt(g.totalHarga)+'</div>' : '')+
